@@ -131,6 +131,7 @@ defmodule ElixirProgrammingGame.Actor do
 
   defp _set_event_code(event, code, %{event_handlers: event_handlers, cache: cache}=state) do
     Logger.info("Code loading on Actor `#{inspect state}`:\n\"\"\"\n#{code}\n\"\"\"")
+    # TODO:  Move this to a code loader, or ETS or so, store the AST to lookup as the key maybe?
     case SafeScript.safe_compile_of_input_block(code, [:state, :msg], [], [is_allowed_fun: &events_whitelist/2, aliases: [{Actor, ElixirProgrammingGame.Actor.ExposedActor}]]) do
       {:error, reason} -> {:error, reason}
       {:ok, fun} ->
