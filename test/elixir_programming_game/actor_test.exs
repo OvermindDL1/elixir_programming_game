@@ -38,7 +38,7 @@ defmodule ElixirProgrammingGameTest.ActorTest do
     assert %{} = state
   end
 
-  #ExUnit is not capture the log...
+  #ExUnit is not capturing the log...
   # test "test cmds - log", %{actor: actor} do
   #   {:ok, actor} = Actor.start_link(save_to_pid: self())
   #   Actor.set_event_code(actor, "user1", """
