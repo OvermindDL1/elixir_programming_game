@@ -17,6 +17,11 @@ defmodule ElixirProgrammingGameTest.ActorTest do
     assert %{} = state
   end
 
-  test "Blah" do
+  test "set event code and run event - init", %{actor: actor} do
+    Actor.set_event_code(actor, "init", """
+      []
+    """)
+    Actor.send_event(actor, "init", %{})
+    Actor.get_id(actor) # Synchronize
   end
 end
