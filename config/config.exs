@@ -28,3 +28,6 @@ use Mix.Config
 # here (which is why it is important to import them last).
 #
 #     import_config "#{Mix.env}.exs"
+
+# Print only warnings and errors during testing
+config :logger, level: :warn

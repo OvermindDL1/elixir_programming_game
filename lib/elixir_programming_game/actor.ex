@@ -63,7 +63,9 @@ defmodule ElixirProgrammingGame.Actor do
     state = %{
       id: opts[:id] || make_ref(),
       save_to_pid: opts[:save_to_pid],
+      world: opts[:world],
       event_handlers: %{},
+      code_state: %{},
       cache: %{
         event_cbs: %{},
       }
@@ -82,7 +84,7 @@ defmodule ElixirProgrammingGame.Actor do
 
 
   def handle_cast({:stop, do_send_state}, state) do
-    if do_send_state, do: state = _send_state(state)
+    state = if(do_send_state, do: _send_state(state), else: state)
     {:stop, :normal, state}
   end
   def handle_cast(:send_state, state) do
@@ -115,9 +117,21 @@ defmodule ElixirProgrammingGame.Actor do
   defp _send_state(state), do: state
 
 
+  defp events_whitelist(ast, acc)
+  defp events_whitelist(ast, {false, _}=err), do: {ast, err}
+  defp events_whitelist({:__aliases__, _, [module]}=ast, succ) when module in [:Actor], do: {ast, succ}
+  defp events_whitelist(ast, acc), do: SafeScript.default_safe(ast, acc)
+
+
+  defmodule ExposedActor do
+    def log(msg), do: {:log, msg}
+    def save(), do: :save
+  end
+
 
   defp _set_event_code(event, code, %{event_handlers: event_handlers, cache: cache}=state) do
-    case SafeScript.safe_compile_of_input_block(code, [:evt]) do
+    Logger.info("Code loading on Actor `#{inspect state}`:\n\"\"\"\n#{code}\n\"\"\"")
+    case SafeScript.safe_compile_of_input_block(code, [:state, :msg], [], [is_allowed_fun: &events_whitelist/2, aliases: [{Actor, ElixirProgrammingGame.Actor.ExposedActor}]]) do
       {:error, reason} -> {:error, reason}
       {:ok, fun} ->
         event_cbs = Map.put(cache.event_cbs, event, fun)
@@ -128,14 +142,20 @@ defmodule ElixirProgrammingGame.Actor do
   end
 
 
-  defp _send_event(event, msg, %{cache: %{event_cbs: event_cbs}}=state) do
+  defp _send_event(event, msg, %{cache: %{event_cbs: event_cbs}, code_state: code_state}=state) do
     case event_cbs[event] do
       nil -> {:ok, state}
       cb ->
         try do
-          result = cb.(msg)
-          state = _process_cmd(result, state)
-          {:ok, state}
+          case cb.(code_state, msg) do
+            {cmds, code_state} ->
+              state = %{state | code_state: code_state}
+              state = _process_cmd(cmds, state)
+              {:ok, state}
+            code_state ->
+              state = %{state | code_state: code_state}
+              {:ok, state}
+          end
         catch
           :error, reason -> {:error, reason}
           e, r -> {:error, {e, r}}
@@ -148,6 +168,17 @@ defmodule ElixirProgrammingGame.Actor do
 
   defp _process_cmd(cmd, state)
   defp _process_cmd([], state), do: state
+  defp _process_cmd([_|_]=lst, state), do: Enum.reduce(lst, state, &_process_cmd/2)
+  defp _process_cmd(:save, state) do
+    # TODO:  Throttle sending state
+      state = _send_state(state)
+      state
+  end
+  defp _process_cmd({:log, msg}, state) do
+    # TODO:  Send this to listener?
+    IO.inspect({:log, msg, state}, label: "Actor")
+    state
+  end
   defp _process_cmd(cmd, state) do
     Logger.error("Unhandled cmd of `#{inspect cmd}` with state of:  #{inspect state}")
     state
